@@ -1,0 +1,18 @@
+Source: openpgpkey-milter
+Section: mail
+Priority: extra
+Maintainer: root <root@unknown>
+Build-Depends: debhelper (>= 8.0.0)
+Standards-Version: 3.9.2
+Homepage: ftp://ftp.nohats.ca/openpgpkey-milter/
+#Vcs-Git: git://git.debian.org/collab-maint/openpgpkey-milter.git
+#Vcs-Browser: http://git.debian.org/?p=collab-maint/openpgpkey-milter.git;a=summary
+
+Package: openpgpkey-milter
+Architecture: all
+Depends: ${misc:Depends}, mail-transport-agent, python-unbound, python-gnupg, python-milter
+Description: OPENPGPKEY basd automatic encryption of emails using the milter API
+ The openpgpkey-milter package provides a milter plugin for sendmail or postfix
+ that will automatically encrypt plaintext emails if the target recipient is
+ publishing an OPENPGPKEY record protected with DNSSEC. This is currently an
+ IETF draft (draft-wouters-dane-openpgp)
