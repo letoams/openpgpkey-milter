@@ -17,17 +17,17 @@
 # or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
 # for more details.
 
-VERSION = '0.1'
+VERSION = '0.2'
 
 import Milter
 import StringIO
 import time
 import email
-import base64
 import sys
 import os
 import shutil
 import argparse
+from hashlib import sha224
 
 from socket import AF_INET6
 from Milter.utils import parse_addr
@@ -163,7 +163,7 @@ class myMilter(Milter.Base):
         gpg = gnupg.GPG(gnupghome=gpgdir)
         for recipient in recipients:
             (username, domainname) = recipient.split('@')
-            rfcname = base64.b32encode(username)
+            rfcname = sha224(username).hexdigest()
             qname = '%s._openpgpkey.%s' % (rfcname, domainname)
             (status, result) = ctx.resolve(qname, openpgp_type,
                     unbound.RR_CLASS_IN)
@@ -187,7 +187,7 @@ class myMilter(Milter.Base):
             # Finally, we have a key!
             for openpgpkey in result.data.raw:
                 # TODO: check failure to import
-                import_result = gpg.import_keys(base64.b64decode(openpgpkey))
+                import_result = gpg.import_keys(openpgpkey)
 
         # if we get here, all recipients had an valid openpgpkey record so we can encrypt the message
         # collect fingerprints needed to target message encryption
