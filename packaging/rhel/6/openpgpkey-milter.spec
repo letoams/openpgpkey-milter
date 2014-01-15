@@ -1,5 +1,5 @@
 Name: openpgpkey-milter
-Version: 0.1
+Version: 0.2
 Release: 1%{?dist}
 Summary: OPENPGPKEY basd automatic encryption of emails using the milter API
 Group: System Environment/Daemons
