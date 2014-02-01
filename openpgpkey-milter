@@ -46,6 +46,12 @@ except:
     # for python 2.6
     openlog('openpgpkey-milter', LOG_MAIL)
 
+try:
+    import setproctitle
+    setproctitle.setproctitle("openpgpkey-milter")
+except:
+    syslog('openpgpkey-milter: failed to setproctitle - python-setproctitle missing?')
+
 import unbound
 ctx = unbound.ub_ctx()
 ctx.resolvconf('/etc/resolv.conf')
@@ -264,6 +270,8 @@ def main():
                                 , epilog='For bugs. see paul@nohats.ca')
     parser.add_argument('--port', '-p', action='store', default='8890',
                         help='port on localhost to use (default 8890)')
+    parser.add_argument('--pid', '-P', action='store', default='',
+                        help='pidfile to create (default no pid file is created')
     parser.add_argument('--rrtype', '-r', action='store',
                         default='65280',
                         help='RRtype allocation (default private use 65280)')
@@ -277,7 +285,7 @@ def main():
     args = parser.parse_args()
     if args.version:
         print 'openpgpkey-milter version %s by Paul Wouters <paul@cypherpunks.ca>' % VERSION
-        print '     options: --rrtype %s --spool %s  --port %s  --timeout %s' % (args.rrtype, args.spool, args.port, args.timeout)
+        print '     options: --rrtype %s --spool %s  --port %s  --timeout %s --pid <pidfile>' % (args.rrtype, args.spool, args.port, args.timeout)
         sys.exit()
 
     try:
@@ -297,14 +305,26 @@ def main():
     flags += Milter.ADDRCPT
     flags += Milter.DELRCPT
     Milter.set_flags(flags)
-    syslog('starting daemon version %s on port %s using rrtype %s at %s with timeout %s'
-            % (VERSION, args.port, openpgp_type, args.spool, args.timeout))
+
+    mypid = str(os.getpid())
+    if args.pid:
+       try:
+            fp = open(args.pid,"w")
+            fp.write(mypid)
+            fp.close()
+       except:
+              sys.exit("Failed to write pid, aborted")
+
+    syslog('starting daemon [%s] version %s on port %s using rrtype %s at %s with timeout %s'
+            % (mypid, VERSION, args.port, openpgp_type, args.spool, args.timeout))
     sys.stdout.flush()
     Milter.runmilter('pythonfilter', socketname, args.timeout)
     logq.put(None)
     bt.join()
     syslog('shutting down daemon')
 
+    if os.path.isfile(args.pid) and not os.path.islink(args.pid):
+       os.unlink(args.pid)
 
 if __name__ == '__main__':
     main()

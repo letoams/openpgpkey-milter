@@ -1,14 +1,13 @@
 Name: openpgpkey-milter
-Version: 0.2
+Version: 0.3
 Release: 1%{?dist}
 Summary: OPENPGPKEY basd automatic encryption of emails using the milter API
 Group: System Environment/Daemons
 License: GPLv2+
+BuildArch:noarch
 URL: ftp://ftp.nohats.ca/openpgpkey-milter
 Source0: ftp://ftp.nohats.ca/%{name}/%{name}-%{version}.tar.gz
-Source1: tmpfiles-openpgk-milter.conf
-Source2: %{name}.service
-Requires: %{_sbindir}/sendmail python-gnupg unbound-python python-pymilter
+Requires: %{_sbindir}/sendmail python-gnupg unbound-python python-pymilter python-setproctitle
 
 Requires (post): chkconfig
 Requires (preun): chkconfig, initscripts
@@ -26,41 +25,32 @@ IETF draft (draft-wouters-dane-openpgp)
 %build
 
 %install
-mkdir -p %{buildroot}%{_sysconfdir}/tmpfiles.d/
-install -m 0644 %{SOURCE1} %{buildroot}%{_sysconfdir}/tmpfiles.d/
-
-mkdir -p %{buildroot}%{_localstatedir}/spool/%{name}
-
-install -p -m 755 -D /dev/null %{buildroot}%{_localstatedir}/run/%{name}/%{name}.sock
+mkdir -p %{buildroot}%{_localstatedir}/spool/%{name} %{buildroot}%{_localstatedir}/run/%{name}
 
 mkdir -p %{buildroot}%{_sbindir}
-install -p -a -D openpgpkey-milter %{buildroot}%{_sbindir}
+install -p -m 0755 -D %{name} %{buildroot}%{_sbindir}/%{name}
 
-install -p -m 0755 -D packaging/rhel/6/openpgpkey-milter.init %{_initrddir}/openpgpkey-milter
+install -p -m 0755 -D packaging/rhel/6/%{name}.init %{buildroot}%{_initrddir}/%{name}
 
 %files
 %doc README LICENSE 
-%config(noreplace) %{_sysconfdir}/sysconfig/%{name}
-%config(noreplace) %{_sysconfdir}/tmpfiles.d/%{name}.conf
 %dir %attr(750,root,mail) %{_localstatedir}/run/%{name}
-%dir %attr(770,root,mail) %{_localstatedir}lib/${name}
 %dir %attr(770,root,mail) %{_localstatedir}/spool/%{name}
-%attr(0755,root,root) %{_initrddir}/openpgpkey-milter
-%ghost %{_localstatedir}/run/%{name}/%{name}.sock
-%{_sbindir}/openpgpkey-milter
+%attr(0755,root,root) %{_initrddir}/%{name}
+%attr(0755,root,root) %{_sbindir}/%{name}
 
 %post
-/sbin/chkconfig --add openpgpkey-milter
+/sbin/chkconfig --add %{name}
 
 %preun
 if [ $1 -eq 0 ]; then
-  /sbin/service openpgpkey-milter stop > /dev/null 2>&1
-  /sbin/chkconfig --del openpgpkey-milter
+  /sbin/service %{name} stop > /dev/null 2>&1
+  /sbin/chkconfig --del %{name}
 fi
 
 %postun
 if [ $1 -ge 1 ]; then
-  /sbin/service openpgpkey-milter condrestart 2>&1 >/dev/null
+  /sbin/service %{name} condrestart 2>&1 >/dev/null
 fi
 
 %changelog
