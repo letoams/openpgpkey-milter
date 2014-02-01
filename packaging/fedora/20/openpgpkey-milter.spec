@@ -56,5 +56,8 @@ install -p -m 0644 -D packaging/fedora/20/%{name}.service  %{buildroot}%{_unitdi
 %attr(755,root,root)%{_sbindir}/openpgpkey-milter
 
 %changelog
+* Sat Jan 18 2014 Paul Wouters <pwouters@redhat.com> - 0.2-1
+- Updated to 0.2, which uses draft-wouters-dane-openpgpkey-02
+
 * Tue Dec 31 2013 Paul Wouters <pwouters@redhat.com> - 0.1-1
 - Initial package
