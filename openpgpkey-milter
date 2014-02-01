@@ -17,7 +17,7 @@
 # or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
 # for more details.
 
-VERSION = '0.2'
+VERSION = '0.3'
 
 import Milter
 import StringIO
@@ -40,7 +40,11 @@ else:
 logq = Queue(maxsize=4)
 
 from syslog import syslog, openlog, LOG_MAIL
-openlog('openpgpkey-milter', facility=LOG_MAIL)
+try:
+    openlog('openpgpkey-milter', facility=LOG_MAIL)
+except:
+    # for python 2.6
+    openlog('openpgpkey-milter', LOG_MAIL)
 
 import unbound
 ctx = unbound.ub_ctx()
