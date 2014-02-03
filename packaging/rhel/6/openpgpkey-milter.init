@@ -2,7 +2,7 @@
 #
 # openpgpkey-milter      Postfix and Sendmail message filter
 #
-# chkconfig: - 80 30
+# chkconfig: 2345 80 30
 # description: Message filter that auto-encrypts email absed on OPENPGPKEY
 #              DNS records
 # processname: openpgpkey-milter
@@ -31,34 +31,43 @@ OPTIONS=""
 
 RETVAL=0
 prog="openpgpkey-milter"
-lockfile=/var/lock/subsys/$prog
-pidfile=/var/run/$prog/$prog.pid
+lockfile=/var/lock/subsys/${prog}
+pidfile=/var/run/${prog}/${prog}.pid
 
 start() {
-	[ "$EUID" != "0" ] && exit 4
+	[ "${EUID}" != "0" ] && exit 4
 	# Check that networking is up.
 	[ ${NETWORKING} = "no" ] && exit 1
-	echo -n $"Starting $prog: "
-	daemon --pidfile ${pidfile} /usr/sbin/openpgpkey-milter $OPTIONS --pid ${pidfile} > /dev/null 2>&1 &
+	echo -n $"Starting ${prog}: "
+	daemon --pidfile ${pidfile} /usr/sbin/openpgpkey-milter ${OPTIONS} --pid ${pidfile} >/dev/null 2>&1 &
+	touch ${lockfile}
+	usleep 10000
+	# Result of start is unknown when we start to background so we check
+	pidof -o %PPID ${prog} >/dev/null 2>&1
 	RETVAL=$?
-	[ $RETVAL -eq 0 ] && touch $lockfile
+	if [ $RETVAL -eq 0 ]; then
+	    echo_success
+	else
+	    echo_failure
+	    rm -f ${lockfile}
+	fi
         echo
 	return $RETVAL
 }
 
 stop() {
-	[ "$EUID" != "0" ] && exit 4
+	[ "${EUID}" != "0" ] && exit 4
         # Stop daemons.
-	echo -n $"Shutting down $prog: "
-	killproc -p $pidfile $prog
+	echo -n $"Shutting down ${prog}: "
+	killproc -p ${pidfile} ${prog}
 	RETVAL=$?
-	[ $RETVAL -eq 0 ] && rm -f $lockfile $pidfile
+	[ $RETVAL -eq 0 ] && rm -f ${lockfile} ${pidfile}
 	echo
 	return $RETVAL
 }
 
 check() {
-	pidof $prog 2>/dev/null 1>&2 && success || failure $"$prog check"
+	pidof -o %PPID ${prog} 2>/dev/null 1>&2 && success || failure $"${prog} check"
 	return $?
 }
 
@@ -84,7 +93,7 @@ case "$1" in
 	check
 	;;
   status)
-  	status -p $pidfile -l $(basename $lockfile) $prog
+  	status -p ${pidfile} -l ${prog} ${prog}
 	;;
   condrestart)
 	stop
