@@ -1,3 +1,7 @@
+v0.3 (Sat February 2, 2014)
+* Added --pid / -P support for sysvinit - fixed packaging/rhel/6
+* Fix license confusion and clearly mark it GPLv3+
+
 v0.2 (Tue January 14, 2014)
 * Updated to draft-wouters-openpgpkey-02 version of the draft
 
