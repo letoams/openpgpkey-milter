@@ -3,7 +3,7 @@ Version: 0.3
 Release: 1%{?dist}
 Summary: OPENPGPKEY basd automatic encryption of emails using the milter API
 Group: System Environment/Daemons
-License: GPLv2+
+License: GPLv3+
 BuildArch:noarch
 URL: ftp://ftp.nohats.ca/openpgpkey-milter
 Source0: ftp://ftp.nohats.ca/%{name}/%{name}-%{version}.tar.gz

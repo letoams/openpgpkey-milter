@@ -9,7 +9,7 @@
 
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published by the
-# Free Software Foundation; either version 2 of the License, or (at your
+# Free Software Foundation; either version 3 of the License, or (at your
 # option) any later version.  See <http://www.fsf.org/copyleft/gpl.txt>.
 #
 # This program is distributed in the hope that it will be useful, but
@@ -18,6 +18,7 @@
 # for more details.
 
 VERSION = '0.3'
+ANCHOR = '/var/lib/unbound/root.anchor'
 
 import Milter
 import StringIO
@@ -55,7 +56,11 @@ except:
 import unbound
 ctx = unbound.ub_ctx()
 ctx.resolvconf('/etc/resolv.conf')
-ctx.add_ta_file('/var/lib/unbound/root.anchor')
+try:
+    if os.path.isfile(ANCHOR):
+       ctx.add_ta_file(ANCHOR)
+except:
+    pass
 
 openpgp_type = 65280  # draft value - changes when RFC
 spool_dir = '/var/spool/openpgpkey-milter'
@@ -154,7 +159,7 @@ class myMilter(Milter.Base):
 
         # ### TODO ADD SUPPORT FOR MIME / ATTACHMENTS ####
         if msg.is_multipart():
-            syslog('Multipart message type pased unmodified')
+            syslog('Multipart message type passed unmodified')
             return Milter.CONTINUE
 
         gpgdir = '%s/%s' % (spool_dir, self.id)
@@ -265,9 +270,12 @@ def background():
 def main():
     global openpgp_type
     global spool_dir
+    global ctx
     parser = \
         argparse.ArgumentParser(description='OPENPGPKEY milter application'
                                 , epilog='For bugs. see paul@nohats.ca')
+    parser.add_argument('--anchor', '-a', action='store', default='',
+                        help='location of the unbound DNSSEC trust anchor file (default /var/lib/unbound/root.anchor')
     parser.add_argument('--port', '-p', action='store', default='8890',
                         help='port on localhost to use (default 8890)')
     parser.add_argument('--pid', '-P', action='store', default='',
@@ -287,6 +295,11 @@ def main():
         print 'openpgpkey-milter version %s by Paul Wouters <paul@cypherpunks.ca>' % VERSION
         print '     options: --rrtype %s --spool %s  --port %s  --timeout %s --pid <pidfile>' % (args.rrtype, args.spool, args.port, args.timeout)
         sys.exit()
+
+    if args.anchor:
+        if not os.path.isfile(args.anchor):
+           sys.exit("anchor file '%s' does not exist"%args.anchor)
+        ctx.add_ta_file(args.anchor)
 
     try:
         openpgp_type = int(args.rrtype)
