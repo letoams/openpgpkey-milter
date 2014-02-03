@@ -151,7 +151,7 @@ class myMilter(Milter.Base):
         subject = 'none'
 
 
-        self.addheader('X-DKIM-OPENPGPKEY', 'Message passed unmodified' , 1)
+        self.addheader('X-OPENPGPKEY', 'Message passed unmodified' , 1)
         msg = email.message_from_file(self.fp)
         # msg is an email.message.Message
         # http://docs.python.org/release/2.7.6/library/email.message.html
@@ -232,7 +232,7 @@ class myMilter(Milter.Base):
 
         self.chgheader('User-Agent', 1, 'dkim-openpgpkey')
         self.chgheader('Subject', 1, '[openpgpkey-milter encrypted message]')
-        self.chgheader('X-DKIM-OPENPGPKEY', 1, 'Encrypted to key(s): %s ' % fpliststr)
+        self.chgheader('X-OPENPGPKEY', 1, 'Encrypted to key(s): %s ' % fpliststr)
 
         # Replace original email with our encrypted version
         self.replacebody(enc_msg.data)
