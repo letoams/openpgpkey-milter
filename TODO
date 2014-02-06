@@ -1,1 +1,3 @@
 - replace the From: with a placeholder as well. metadata is data too
+- write a mail processor that can be hooked to SOA email for automatic
+  inclusion into a zone. Using authenticated SMTP?
