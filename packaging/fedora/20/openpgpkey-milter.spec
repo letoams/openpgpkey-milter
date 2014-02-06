@@ -1,13 +1,13 @@
 Name: openpgpkey-milter
-Version: 0.1
+Version: 0.3
 Release: 1%{?dist}
 BuildArch: noarch
 Summary: OPENPGPKEY basd automatic encryption of emails using the milter API
 Group: System Environment/Daemons
-License: GPLv2+
+License: GPLv3+
 URL: ftp://ftp.nohats.ca/openpgpkey-milter
 Source0: ftp://ftp.nohats.ca/%{name}/%{name}-%{version}.tar.gz
-Requires: %{_sbindir}/sendmail python-gnupg unbound-python python-pymilter
+Requires: %{_sbindir}/sendmail python-gnupg unbound-python python-pymilter python-setproctitle
 
 BuildRequires: systemd-units
 Requires(post): systemd
@@ -56,5 +56,8 @@ install -p -m 0644 -D packaging/fedora/20/%{name}.service  %{buildroot}%{_unitdi
 %attr(755,root,root)%{_sbindir}/openpgpkey-milter
 
 %changelog
+* Sat Jan 18 2014 Paul Wouters <pwouters@redhat.com> - 0.2-1
+- Updated to 0.2, which uses draft-wouters-dane-openpgpkey-02
+
 * Tue Dec 31 2013 Paul Wouters <pwouters@redhat.com> - 0.1-1
 - Initial package

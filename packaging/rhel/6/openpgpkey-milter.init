@@ -1,25 +1,23 @@
 #!/bin/sh
 #
-# openpgpkey-milter	
+# openpgpkey-milter      Postfix and Sendmail message filter
 #
-# chkconfig: - 80 30
-# description:	A postfix/sendmail milter to auto-encrypy email using DNS OPENPGPKEY records
+# chkconfig: 2345 80 30
+# description: Message filter that auto-encrypts email absed on OPENPGPKEY
+#              DNS records
+# processname: openpgpkey-milter
 #
-# processname:	/usr/sbin/openpgpkey-milter
-# pidfile:	/var/run/openpgpkey-milter.pid
 
 ### BEGIN INIT INFO
-# Provides: openpgpkey-milter
-# Required-Start: $local_fs $network $syslog
-# Required-Stop: $local_fs $network $syslog
+# Provides: postfix MTA
+# Required-Start: $local_fs $network $remote_fs
+# Required-Stop: $local_fs $network $remote_fs
 # Default-Start:
-# Default-Stop: 0 1 2 3 4 5 6
-# Short-Description: start|stop|status|restart|try-restart|reload|force-reload openpgpkey-milter server
-# Description: control openpgpkey-milter server
+# Default-Stop: 0 1 6
+# Short-Description: start and stop openpgpkey-milter
+# Description: Message filter that auto-encrypts email absed on OPENPGPKEY
+#              DNS records
 ### END INIT INFO
-
-#Servicename
-SERVICE=openpgpkey-milter
 
 # Source function library.
 . /etc/rc.d/init.d/functions
@@ -27,44 +25,50 @@ SERVICE=openpgpkey-milter
 # Source networking configuration.
 . /etc/sysconfig/network
 
-if [ ${NETWORKING} = "no" ]
-then
-	exit 0
-fi
-
-[ -x /usr/sbin/$SERVICE ] || exit 0
+# for $OPTIONS
+OPTIONS=""
+[ -r /etc/sysconfig/openpgpkey-milter ] && . /etc/sysconfig/openpgpkey-milter
 
 RETVAL=0
+prog="openpgpkey-milter"
+lockfile=/var/lock/subsys/${prog}
+pidfile=/var/run/${prog}/${prog}.pid
 
 start() {
-	echo -n "Starting $SERVICE: "
-
-	daemon $SERVICE &
+	[ "${EUID}" != "0" ] && exit 4
+	# Check that networking is up.
+	[ ${NETWORKING} = "no" ] && exit 1
+	echo -n $"Starting ${prog}: "
+	daemon --pidfile ${pidfile} /usr/sbin/openpgpkey-milter ${OPTIONS} --pid ${pidfile} >/dev/null 2>&1 &
+	touch ${lockfile}
+	usleep 10000
+	# Result of start is unknown when we start to background so we check
+	pidof -o %PPID ${prog} >/dev/null 2>&1
 	RETVAL=$?
-	echo 
-	if [ $RETVAL -eq 0 ];then
-	   touch /var/lock/subsys/$SERVICE
+	if [ $RETVAL -eq 0 ]; then
+	    echo_success
 	else
-	   exit 7;
+	    echo_failure
+	    rm -f ${lockfile}
 	fi
-  return 0;
+        echo
+	return $RETVAL
 }
 
 stop() {
-	echo -n "Stopping $SERVICE: "
-	killproc $SERVICE
+	[ "${EUID}" != "0" ] && exit 4
+        # Stop daemons.
+	echo -n $"Shutting down ${prog}: "
+	killproc -p ${pidfile} ${prog}
 	RETVAL=$?
-	if [ $RETVAL -eq 0 ]; then
-	   rm -f /var/run/xl2tpd/$SERVICE
-	   rm -f /var/lock/subsys/$SERVICE
-	fi
+	[ $RETVAL -eq 0 ] && rm -f ${lockfile} ${pidfile}
 	echo
 	return $RETVAL
 }
 
-restart() {
-	stop
-	start
+check() {
+	pidof -o %PPID ${prog} 2>/dev/null 1>&2 && success || failure $"${prog} check"
+	return $?
 }
 
 # See how we were called.
@@ -75,17 +79,29 @@ case "$1" in
   stop)
 	stop
 	;;
-  status)
-	status $SERVICE
-	RETVAL=$?
+  restart|force-reload)
+	stop
+	start
 	;;
-  restart|reload)
-	restart
+  abort)
+	abort
+	;;
+  flush)
+	flush
+	;;
+  check)
+	check
+	;;
+  status)
+  	status -p ${pidfile} -l ${prog} ${prog}
 	;;
   condrestart)
-	[ -f /var/lock/subsys/$SERVICE ] && restart || :
+	stop
+	start
 	;;
   *)
-	echo "Usage: $SERVICE {start|stop|status|restart|reload|condrestart}"
-	exit 1
+	echo $"Usage: $0 {start|stop|restart|reload|abort|flush|check|status|condrestart}"
+	exit 2
 esac
+
+exit $?

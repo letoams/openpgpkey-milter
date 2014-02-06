@@ -22,8 +22,8 @@ openpgpkey-milter requires:
 
 * python-unbound / unbound-python (in all major distros)
 * python-milter / python-pymilter (in all major distros)
-* [python-gnupg](http://pythonhosted.org/python-gnupg/) with this [patch](http://code.google.com/p/python-gnupg/issues/detail?id=94) which is not yet in Fedora/EPEL or Debian/Ubuntu. I create a [fedora package](ftp://ftp.nohats.ca/python-gnupg/) which is pending review and should accepted soon.
-* gnupg, libmilter, etc which are dragged in by the above packages
+* [python-gnupg](http://pythonhosted.org/python-gnupg/) with this [patch](http://code.google.com/p/python-gnupg/issues/detail?id=94) . The Fedora/EPEL package has the patch. Debian/Ubuntu packages do not. 
+* gnupg, libmilter, etc which are dragged in dependancies by the above packages
 
 Recommended
 -----------

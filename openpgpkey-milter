@@ -9,7 +9,7 @@
 
 # This program is free software; you can redistribute it and/or modify it
 # under the terms of the GNU General Public License as published by the
-# Free Software Foundation; either version 2 of the License, or (at your
+# Free Software Foundation; either version 3 of the License, or (at your
 # option) any later version.  See <http://www.fsf.org/copyleft/gpl.txt>.
 #
 # This program is distributed in the hope that it will be useful, but
@@ -17,17 +17,18 @@
 # or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
 # for more details.
 
-VERSION = '0.1'
+VERSION = '0.3'
+ANCHOR = '/var/lib/unbound/root.anchor'
 
 import Milter
 import StringIO
 import time
 import email
-import base64
 import sys
 import os
 import shutil
 import argparse
+from hashlib import sha224
 
 from socket import AF_INET6
 from Milter.utils import parse_addr
@@ -40,12 +41,26 @@ else:
 logq = Queue(maxsize=4)
 
 from syslog import syslog, openlog, LOG_MAIL
-openlog('openpgpkey-milter', facility=LOG_MAIL)
+try:
+    openlog('openpgpkey-milter', facility=LOG_MAIL)
+except:
+    # for python 2.6
+    openlog('openpgpkey-milter', LOG_MAIL)
+
+try:
+    import setproctitle
+    setproctitle.setproctitle("openpgpkey-milter")
+except:
+    syslog('openpgpkey-milter: failed to setproctitle - python-setproctitle missing?')
 
 import unbound
 ctx = unbound.ub_ctx()
 ctx.resolvconf('/etc/resolv.conf')
-ctx.add_ta_file('/var/lib/unbound/root.anchor')
+try:
+    if os.path.isfile(ANCHOR):
+       ctx.add_ta_file(ANCHOR)
+except:
+    pass
 
 openpgp_type = 65280  # draft value - changes when RFC
 spool_dir = '/var/spool/openpgpkey-milter'
@@ -136,7 +151,7 @@ class myMilter(Milter.Base):
         subject = 'none'
 
 
-        self.addheader('X-DKIM-OPENPGPKEY', 'Message passed unmodified' , 1)
+        self.addheader('X-OPENPGPKEY', 'Message passed unmodified' , 1)
         msg = email.message_from_file(self.fp)
         # msg is an email.message.Message
         # http://docs.python.org/release/2.7.6/library/email.message.html
@@ -144,7 +159,7 @@ class myMilter(Milter.Base):
 
         # ### TODO ADD SUPPORT FOR MIME / ATTACHMENTS ####
         if msg.is_multipart():
-            syslog('Multipart message type pased unmodified')
+            syslog('Multipart message type passed unmodified')
             return Milter.CONTINUE
 
         gpgdir = '%s/%s' % (spool_dir, self.id)
@@ -163,7 +178,7 @@ class myMilter(Milter.Base):
         gpg = gnupg.GPG(gnupghome=gpgdir)
         for recipient in recipients:
             (username, domainname) = recipient.split('@')
-            rfcname = base64.b32encode(username)
+            rfcname = sha224(username).hexdigest()
             qname = '%s._openpgpkey.%s' % (rfcname, domainname)
             (status, result) = ctx.resolve(qname, openpgp_type,
                     unbound.RR_CLASS_IN)
@@ -187,7 +202,7 @@ class myMilter(Milter.Base):
             # Finally, we have a key!
             for openpgpkey in result.data.raw:
                 # TODO: check failure to import
-                import_result = gpg.import_keys(base64.b64decode(openpgpkey))
+                import_result = gpg.import_keys(openpgpkey)
 
         # if we get here, all recipients had an valid openpgpkey record so we can encrypt the message
         # collect fingerprints needed to target message encryption
@@ -217,7 +232,7 @@ class myMilter(Milter.Base):
 
         self.chgheader('User-Agent', 1, 'dkim-openpgpkey')
         self.chgheader('Subject', 1, '[openpgpkey-milter encrypted message]')
-        self.chgheader('X-DKIM-OPENPGPKEY', 1, 'Encrypted to key(s): %s ' % fpliststr)
+        self.chgheader('X-OPENPGPKEY', 1, 'Encrypted to key(s): %s ' % fpliststr)
 
         # Replace original email with our encrypted version
         self.replacebody(enc_msg.data)
@@ -255,11 +270,16 @@ def background():
 def main():
     global openpgp_type
     global spool_dir
+    global ctx
     parser = \
         argparse.ArgumentParser(description='OPENPGPKEY milter application'
                                 , epilog='For bugs. see paul@nohats.ca')
+    parser.add_argument('--anchor', '-a', action='store', default='',
+                        help='location of the unbound DNSSEC trust anchor file (default /var/lib/unbound/root.anchor')
     parser.add_argument('--port', '-p', action='store', default='8890',
                         help='port on localhost to use (default 8890)')
+    parser.add_argument('--pid', '-P', action='store', default='',
+                        help='pidfile to create (default no pid file is created')
     parser.add_argument('--rrtype', '-r', action='store',
                         default='65280',
                         help='RRtype allocation (default private use 65280)')
@@ -273,8 +293,13 @@ def main():
     args = parser.parse_args()
     if args.version:
         print 'openpgpkey-milter version %s by Paul Wouters <paul@cypherpunks.ca>' % VERSION
-        print '     options: --rrtype %s --spool %s  --port %s  --timeout %s' % (args.rrtype, args.spool, args.port, args.timeout)
+        print '     options: --rrtype %s --spool %s  --port %s  --timeout %s --pid <pidfile>' % (args.rrtype, args.spool, args.port, args.timeout)
         sys.exit()
+
+    if args.anchor:
+        if not os.path.isfile(args.anchor):
+           sys.exit("anchor file '%s' does not exist"%args.anchor)
+        ctx.add_ta_file(args.anchor)
 
     try:
         openpgp_type = int(args.rrtype)
@@ -293,14 +318,26 @@ def main():
     flags += Milter.ADDRCPT
     flags += Milter.DELRCPT
     Milter.set_flags(flags)
-    syslog('starting daemon version %s on port %s using rrtype %s at %s with timeout %s'
-            % (VERSION, args.port, openpgp_type, args.spool, args.timeout))
+
+    mypid = str(os.getpid())
+    if args.pid:
+       try:
+            fp = open(args.pid,"w")
+            fp.write(mypid)
+            fp.close()
+       except:
+              sys.exit("Failed to write pid, aborted")
+
+    syslog('starting daemon [%s] version %s on port %s using rrtype %s at %s with timeout %s'
+            % (mypid, VERSION, args.port, openpgp_type, args.spool, args.timeout))
     sys.stdout.flush()
     Milter.runmilter('pythonfilter', socketname, args.timeout)
     logq.put(None)
     bt.join()
     syslog('shutting down daemon')
 
+    if os.path.isfile(args.pid) and not os.path.islink(args.pid):
+       os.unlink(args.pid)
 
 if __name__ == '__main__':
     main()
