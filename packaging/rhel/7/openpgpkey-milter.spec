@@ -26,7 +26,7 @@ IETF draft (draft-wouters-dane-openpgp)
 %build
 
 %install
-install -p -m 0644 -D packaging/fedora/20/tmpfiles-%{name}.conf %{buildroot}%{_sysconfdir}/tmpfiles.d/%{name}.conf
+install -p -m 0644 -D packaging/rhel/7/tmpfiles-%{name}.conf %{buildroot}%{_sysconfdir}/tmpfiles.d/%{name}.conf
 
 mkdir -p %{buildroot}%{_localstatedir}/spool/%{name}
 
@@ -35,7 +35,7 @@ install -p -m 755 -D /dev/null %{buildroot}%{_localstatedir}/run/%{name}/%{name}
 mkdir -p %{buildroot}%{_sbindir}
 install -p -D openpgpkey-milter %{buildroot}%{_sbindir}/openpgpkey-milter
 
-install -p -m 0644 -D packaging/fedora/20/%{name}.service  %{buildroot}%{_unitdir}/%{name}.service
+install -p -m 0644 -D packaging/rhel/7/%{name}.service  %{buildroot}%{_unitdir}/%{name}.service
 
 %preun
 %systemd_preun openpgpkey-milter.service

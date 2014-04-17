@@ -1,0 +1,11 @@
+[Unit]
+Description=OPENPGPKEY auto encryption milter
+After=syslog.target network.target
+
+[Service]
+Type=simple
+Restart=always
+ExecStart=/usr/sbin/openpgpkey-milter
+
+[Install]
+WantedBy=multi-user.target
