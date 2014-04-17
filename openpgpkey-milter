@@ -176,6 +176,7 @@ class myMilter(Milter.Base):
             recipients.append(entry[1])
         #syslog('recipients:%s' % recipients)
         gpg = gnupg.GPG(gnupghome=gpgdir)
+        gpg.decode_errors="ignore"
         for recipient in recipients:
             (username, domainname) = recipient.split('@')
             rfcname = sha224(username).hexdigest()
@@ -223,6 +224,7 @@ class myMilter(Milter.Base):
             return Milter.CONTINUE
 
         gpg = gnupg.GPG(gnupghome=gpgdir)
+        gpg.decode_errors="ignore"
         syslog('Will encrypt message to fingerprints:%s' % fpliststr)
         enc_msg = gpg.encrypt(msgstr, fingerprints, always_trust=True)
         if enc_msg.data == '':
