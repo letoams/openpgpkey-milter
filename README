@@ -28,21 +28,20 @@ openpgpkey-milter requires:
 Recommended
 -----------
 
-The [hash-slinger](http://people.redhat.com/pwouters/hash-slinger/) package
-as of version 2.3 contains an "openpgpkey" command that allows you to
-generate your own OPENPGPKEY records.
+The [hash-slinger](http://people.redhat.com/pwouters/hash-slinger/)
+package contains an "openpgpkey" command that allows you to generate your
+own OPENPGPKEY records.
 
 How does it work
 ----------------
 
 openpgpkey-milter detects when a message is not encrypted with gpg and
 then checks all the recipients to see if they published the special
-[OPENPGPKEY](http://tools.ietf.org/html/draft-wouters-dane-openpgp) DNS record.
+[OPENPGPKEY](http://tools.ietf.org/html/draft-ietf-dane-openpgpkey) DNS record.
 
-The hash-slinger package (as of version 2.3) contains an openpgpkey
-command that can be used to generate OPENPGPKEY records (currently using
-private RRTYPE 65280 and generic record syntax until the IANA process
-for requesting an RRTYPE has completed.
+The hash-slinger package contains an openpgpkey
+command that can be used to generate OPENPGPKEY records in OPENPGPKEY (IANA RRTYPE#61)
+or in generic record syntax.
 
 Configuration of the milter service
 -----------------------------------

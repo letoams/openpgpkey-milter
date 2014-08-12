@@ -19,6 +19,7 @@
 
 VERSION = '0.4'
 ANCHOR = '/var/lib/unbound/root.anchor'
+OPENPGPKEY = 61
 
 import Milter
 import StringIO
@@ -62,7 +63,6 @@ try:
 except:
     pass
 
-openpgp_type = 65280  # draft value - changes when RFC
 spool_dir = '/var/spool/openpgpkey-milter'
 
 import gnupg
@@ -181,7 +181,7 @@ class myMilter(Milter.Base):
             (username, domainname) = recipient.split('@')
             rfcname = sha224(username).hexdigest()
             qname = '%s._openpgpkey.%s' % (rfcname, domainname)
-            (status, result) = ctx.resolve(qname, openpgp_type,
+            (status, result) = ctx.resolve(qname, OPENPGPKEY,
                     unbound.RR_CLASS_IN)
             if status != 0:
                 # can this ever happen?
@@ -270,7 +270,6 @@ def background():
 ## ===
 
 def main():
-    global openpgp_type
     global spool_dir
     global ctx
     parser = \
@@ -303,11 +302,6 @@ def main():
            sys.exit("anchor file '%s' does not exist"%args.anchor)
         ctx.add_ta_file(args.anchor)
 
-    try:
-        openpgp_type = int(args.rrtype)
-    except:
-        sys.exit("port should be a positive integer")
-
     socketname = 'inet:%s@127.0.0.1' % args.port
     spool_dir = args.spool
 
@@ -330,8 +324,8 @@ def main():
        except:
               sys.exit("Failed to write pid, aborted")
 
-    syslog('starting daemon [%s] version %s on port %s using rrtype %s at %s with timeout %s'
-            % (mypid, VERSION, args.port, openpgp_type, args.spool, args.timeout))
+    syslog('starting daemon [%s] version %s on port %s at %s with timeout %s'
+            % (mypid, VERSION, args.port, args.spool, args.timeout))
     sys.stdout.flush()
     Milter.runmilter('pythonfilter', socketname, args.timeout)
     logq.put(None)
