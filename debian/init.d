@@ -46,7 +46,7 @@ do_start()
 	#   2 if daemon could not be started
 	start-stop-daemon --start --background --pidfile $PIDFILE --exec $DAEMON --test > /dev/null \
 		|| return 1
-	start-stop-daemon --start --quiet --pidfile $PIDFILE --make-pidfile \
+	start-stop-daemon --start --quiet --background --pidfile $PIDFILE --make-pidfile \
 		--exec $DAEMON -- $DAEMON_ARGS \
 		|| return 2
 	# Add code here, if necessary, that waits for the process to be ready
