@@ -17,8 +17,7 @@
 # or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
 # for more details.
 
-VERSION = '0.4'
-ANCHOR = '/var/lib/unbound/root.anchor'
+VERSION = '0.5'
 OPENPGPKEY = 61
 
 import Milter
@@ -29,7 +28,7 @@ import sys
 import os
 import shutil
 import argparse
-from hashlib import sha224
+from hashlib import sha256
 
 from socket import AF_INET6
 from Milter.utils import parse_addr
@@ -57,15 +56,27 @@ except:
 import unbound
 ctx = unbound.ub_ctx()
 ctx.resolvconf('/etc/resolv.conf')
+
+ROOTKEY="none"
+cauldron = ( "/var/lib/unbound/root.anchor", "/var/lib/unbound/root.key", "/etc/unbound/root.key" )
+for root in cauldron:
+    if os.path.isfile(root):
+       ROOTKEY=root
+       break
+
 try:
-    if os.path.isfile(ANCHOR):
-       ctx.add_ta_file(ANCHOR)
+    if ROOTKEY != "none":
+       ctx.add_ta_file(ROOTKEY)
 except:
     pass
 
 spool_dir = '/var/spool/openpgpkey-milter'
 
 import gnupg
+
+def sha256trunc(data):
+        """Compute SHA2-256 hash truncated to 28 octets."""
+        return sha256(data).hexdigest()[:56]
 
 class myMilter(Milter.Base):
 
@@ -179,7 +190,8 @@ class myMilter(Milter.Base):
         gpg.decode_errors="ignore"
         for recipient in recipients:
             (username, domainname) = recipient.split('@')
-            rfcname = sha224(username).hexdigest()
+            # lowercase for sanity - not currently part of specification
+            rfcname = sha256trunc(username.lower())
             qname = '%s._openpgpkey.%s' % (rfcname, domainname)
             (status, result) = ctx.resolve(qname, OPENPGPKEY,
                     unbound.RR_CLASS_IN)
@@ -214,6 +226,11 @@ class myMilter(Milter.Base):
                     % (recipient, ikey['keyid'], ikey['fingerprint']))
             fingerprints.append(ikey['fingerprint'])
         fpliststr = ','.join(fingerprints)
+
+        # place exception rules here
+        #if recipient == "plaintext@nohats.ca" or ikey['keyid'] == "1111111111111111":
+        #   syslog("Skipping encryption");
+        #   return Milter.CONTINUE
 
         if 'subject' in msg:
             subject = msg['subject']

@@ -1,3 +1,7 @@
+v0.5 (Sun Jan 03, 2015)
+* Use sha256 truncated as per draft-ietf-dane-openpgpkey-06
+* Lowercase LHS before hashing (contrary to current draft)
+
 v0.4 (Thu April 17, 2014)
 * Added gpg.decode_errors=ignore to avoid dying in weird/bad keys
 

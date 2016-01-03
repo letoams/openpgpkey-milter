@@ -11,7 +11,7 @@ openpgpkey-milter
 -----------------
 
 openpgpkey-milter is a sendmail/postfix milter service that will attempt
-to automatically PGP encrypt plaintext emails received by the MTA/MUA
+to automatically OpenPGP encrypt plaintext emails received by the MTA/MUA
 before relaying the message further towards the recipient(s). These can be
 messages received from the network, or generated locally.
 
@@ -22,15 +22,16 @@ openpgpkey-milter requires:
 
 * python-unbound / unbound-python (in all major distros)
 * python-milter / python-pymilter (in all major distros)
-* [python-gnupg](http://pythonhosted.org/python-gnupg/) with this [patch](http://code.google.com/p/python-gnupg/issues/detail?id=94) . The Fedora/EPEL package has the patch. Debian/Ubuntu packages do not. 
+* [python-gnupg](http://pythonhosted.org/python-gnupg/)
+  (older versions might need a [patch](http://code.google.com/p/python-gnupg/issues/detail?id=94)
 * gnupg, libmilter, etc which are dragged in dependancies by the above packages
 
 Recommended
 -----------
 
 The [hash-slinger](http://people.redhat.com/pwouters/hash-slinger/)
-package contains an "openpgpkey" command that allows you to generate your
-own OPENPGPKEY records.
+package contains an "openpgpkey" command that allows you to generate and
+verify your own OPENPGPKEY records.
 
 How does it work
 ----------------
@@ -38,10 +39,6 @@ How does it work
 openpgpkey-milter detects when a message is not encrypted with gpg and
 then checks all the recipients to see if they published the special
 [OPENPGPKEY](http://tools.ietf.org/html/draft-ietf-dane-openpgpkey) DNS record.
-
-The hash-slinger package contains an openpgpkey
-command that can be used to generate OPENPGPKEY records in OPENPGPKEY (IANA RRTYPE#61)
-or in generic record syntax.
 
 Configuration of the milter service
 -----------------------------------

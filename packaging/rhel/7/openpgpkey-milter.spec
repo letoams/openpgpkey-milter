@@ -1,6 +1,6 @@
 Name: openpgpkey-milter
-Version: 0.4
-Release: 1%{?dist}
+Version: 0.5
+Release: 2%{?dist}
 BuildArch: noarch
 Summary: OPENPGPKEY basd automatic encryption of emails using the milter API
 Group: System Environment/Daemons
@@ -44,10 +44,10 @@ install -p -m 0644 -D packaging/rhel/7/%{name}.service  %{buildroot}%{_unitdir}/
 %systemd_post openpgpkey-milter.service
 
 %postun
-%systemd_postun_with_restart openpgpkey-milter.service 
+%systemd_postun_with_restart openpgpkey-milter.service
 
 %files
-%doc README LICENSE 
+%doc README LICENSE
 %config(noreplace) %{_sysconfdir}/tmpfiles.d/%{name}.conf
 %{_unitdir}/%{name}.service
 %dir %attr(750,root,mail) %{_localstatedir}/run/%{name}
@@ -56,6 +56,9 @@ install -p -m 0644 -D packaging/rhel/7/%{name}.service  %{buildroot}%{_unitdir}/
 %attr(755,root,root)%{_sbindir}/openpgpkey-milter
 
 %changelog
+* Sun Jan 03 2016 Paul Wouters <pwouters@redhat.com> - 0.5-1
+- Updated to 0.5
+
 * Thu Apr 17 2014 Paul Wouters <pwouters@redhat.com> - 0.4-1
 - Updated to 0.4
 
