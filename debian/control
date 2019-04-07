@@ -16,3 +16,4 @@ Description: OPENPGPKEY basd automatic encryption of emails using the milter API
  that will automatically encrypt plaintext emails if the target recipient is
  publishing an OPENPGPKEY record protected with DNSSEC. This is currently an
  IETF draft (draft-wouters-dane-openpgp)
+Recommends: python-setproctitle
