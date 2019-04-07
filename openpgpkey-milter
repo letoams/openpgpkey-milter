@@ -176,7 +176,7 @@ class myMilter(Milter.Base):
         gpgdir = '%s/%s' % (spool_dir, self.id)
         if os.path.isdir(gpgdir):
             shutil.rmtree(gpgdir)
-        os.mkdir(gpgdir)
+        os.makedirs(gpgdir)
 
         # get recipients from email message
         tos = msg.get_all('to', [])
