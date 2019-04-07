@@ -234,7 +234,7 @@ class myMilter(Milter.Base):
 
         if 'subject' in msg:
             subject = msg['subject']
-        msgstr = '''Subject:%s %s''' % (subject, msg)
+        msgstr = '''Subject:%s %s''' % (subject, msg.get_payload(decode=True))
         if '-----BEGIN PGP MESSAGE-----' in msgstr:
             # already encrypted, let it go as is
             syslog('Message already encrypted - letting it go unmodified')
