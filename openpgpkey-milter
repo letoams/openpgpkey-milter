@@ -252,6 +252,7 @@ class myMilter(Milter.Base):
         self.chgheader('User-Agent', 1, 'dkim-openpgpkey')
         self.chgheader('Subject', 1, '[openpgpkey-milter encrypted message]')
         self.chgheader('X-OPENPGPKEY', 1, 'Encrypted to key(s): %s ' % fpliststr)
+        self.chgheader('Content-Transfer-Encoding', 1, '8bit')
 
         # Replace original email with our encrypted version
         self.replacebody(enc_msg.data)
