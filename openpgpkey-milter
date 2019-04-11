@@ -128,6 +128,7 @@ class myMilter(Milter.Base):
     def envfrom(self, mailfrom, *str):
         self.F = mailfrom
         self.R = []  # list of recipients
+        self.msg_body = []
         self.fromparms = Milter.dictfromlist(str)  # ESMTP parms
         self.user = self.getsymval('{auth_authen}')  # authenticated user
         # syslog("mail from:", mailfrom, *str)
@@ -159,12 +160,12 @@ class myMilter(Milter.Base):
     @Milter.noreply
     def body(self, chunk):
         self.fp.write(chunk)
+        self.msg_body.append(chunk)
         return Milter.CONTINUE
 
     def eom(self):
         self.fp.seek(0)
         subject = 'none'
-
 
         self.addheader('X-OPENPGPKEY', 'Message passed unmodified' , 1)
         msg = email.message_from_file(self.fp)
@@ -176,7 +177,7 @@ class myMilter(Milter.Base):
             return Milter.CONTINUE
 
         # Protect against super-encryption
-        if '-----BEGIN PGP MESSAGE-----' in msg.get_payload(decode=True):
+        if '-----BEGIN PGP MESSAGE-----' in self.msg_body:
             # already encrypted, let it go as is
             syslog('Message already encrypted with PGP - letting it go unmodified')
             return Milter.CONTINUE
@@ -282,7 +283,7 @@ Subject: %s
 
 %s
 
---%s--''' % (innerboundary, msg.get('subject'), innerboundary, mime_header, msg.get_payload(), innerboundary)
+--%s--''' % (innerboundary, msg.get('subject'), innerboundary, mime_header, self.msg_body[0], innerboundary)
 
 
         gpg = gnupg.GPG(gnupghome=gpgdir)
