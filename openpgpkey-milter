@@ -31,6 +31,7 @@ import argparse
 import random
 import string
 from hashlib import sha256
+from email.utils import parseaddr
 
 from socket import AF_INET6
 from Milter.utils import parse_addr
@@ -141,7 +142,8 @@ class myMilter(Milter.Base):
     @Milter.noreply
     def envrcpt(self, to, *str):
         rcptinfo = (to, Milter.dictfromlist(str))
-        self.R.append(rcptinfo)
+        rcpto = rcptinfo[0]
+        self.R.append(parseaddr(rcpto)[1])
         return Milter.CONTINUE
 
     @Milter.noreply
@@ -168,6 +170,10 @@ class myMilter(Milter.Base):
         msg = email.message_from_file(self.fp)
         # msg is an email.message.Message
         # http://docs.python.org/release/2.7.6/library/email.message.html
+
+        if self.R == []:
+            syslog('No recipients')
+            return Milter.CONTINUE
 
         # Protect against super-encryption
         if '-----BEGIN PGP MESSAGE-----' in msg.get_payload(decode=True):
@@ -199,17 +205,9 @@ class myMilter(Milter.Base):
             shutil.rmtree(gpgdir)
         os.makedirs(gpgdir)
 
-        # get recipients from email message
-        tos = msg.get_all('to', [])
-        ccs = msg.get_all('cc', [])
-        all_recipients = email.utils.getaddresses(tos + ccs)
-        recipients = []
-        for entry in all_recipients:
-            recipients.append(entry[1])
-        #syslog('recipients:%s' % recipients)
         gpg = gnupg.GPG(gnupghome=gpgdir)
         gpg.decode_errors="ignore"
-        for recipient in recipients:
+        for recipient in self.R:
             (username, domainname) = recipient.split('@')
             # lowercase for sanity - not currently part of specification
             rfcname = sha256trunc(username.lower())
