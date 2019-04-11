@@ -28,6 +28,8 @@ import sys
 import os
 import shutil
 import argparse
+import random
+import string
 from hashlib import sha256
 
 from socket import AF_INET6
@@ -232,30 +234,71 @@ class myMilter(Milter.Base):
         #   syslog("Skipping encryption");
         #   return Milter.CONTINUE
 
-        if 'subject' in msg:
-            subject = msg['subject']
-        msgstr = '''Subject:%s %s''' % (subject, msg.get_payload(decode=True))
-        if '-----BEGIN PGP MESSAGE-----' in msgstr:
+        if '-----BEGIN PGP MESSAGE-----' in msg.get_payload(decode=True):
             # already encrypted, let it go as is
             syslog('Message already encrypted - letting it go unmodified')
             return Milter.CONTINUE
 
-        gpg = gnupg.GPG(gnupghome=gpgdir)
-        gpg.decode_errors="ignore"
-        syslog('Will encrypt message to fingerprints:%s' % fpliststr)
-        enc_msg = gpg.encrypt(msgstr, fingerprints, always_trust=True)
-        if enc_msg.data == '':
-            # gpg binary and pythong wrapper is bad at giving us an error message
-            syslog('Encryption to %s failed - failing message for retry later' % fpliststr)
-            return Milter.TEMPFAIL
+        outerboundary = ''.join(random.SystemRandom().choice(string.ascii_letters + string.digits) for _ in range(32))
+        innerboundary = ''.join(random.SystemRandom().choice(string.ascii_letters + string.digits) for _ in range(32))
+
+        mime_header = '';
+        if msg.has_key('Content-Type'):
+            mime_header += 'Content-Type: %s' % msg.get('Content-Type')
+        else:
+            mime_header += 'Content-Type: text/plain'
+
+        # MIME headers from https://www.iana.org/assignments/message-headers/message-headers.xhtml
+        for header in ['Base', 'Content-Alternative', 'Content-Base', 'Content-Description', 'Content-Disposition', 'Content-Duration', 'Content-features', 'Content-ID', 'Content-Language', 'Content-Location', 'Content-MD5', 'Content-Transfer-Encoding', 'Content-Translation-Type', 'MIME-Version']:
+            if msg.has_key(header):
+                mime_header += '\r\n%s: %s' % (header, msg.get(header))
+                self.chgheader(header, 1, None)
 
         self.chgheader('User-Agent', 1, 'dkim-openpgpkey')
         self.chgheader('Subject', 1, '[openpgpkey-milter encrypted message]')
         self.chgheader('X-OPENPGPKEY', 1, 'Encrypted to key(s): %s ' % fpliststr)
         self.chgheader('Content-Transfer-Encoding', 1, '8bit')
+        self.chgheader('MIME-Version', 1, '1.0')
+        self.chgheader('Content-Type', 1, 'multipart/encrypted;\r\n protocol="application/pgp-encrypted"; boundary="%s"' % outerboundary)
+
+        mime_msgstr = '''Content-Type: multipart/mixed; boundary="%s";
+ protected-headers="v1"
+Subject: %s
+
+--%s
+%s
+
+%s
+
+--%s--''' % (innerboundary, msg.get('subject'), innerboundary, mime_header, msg.get_payload(), innerboundary)
+
+
+        gpg = gnupg.GPG(gnupghome=gpgdir)
+        gpg.decode_errors="ignore"
+        syslog('Will encrypt message to fingerprints:%s' % fpliststr)
+        mime_enc_msg = gpg.encrypt(mime_msgstr, fingerprints, always_trust=True)
+        if mime_enc_msg.data == '':
+            # gpg binary and pythong wrapper is bad at giving us an error message
+            syslog('Encryption to %s failed - failing message for retry later' % fpliststr)
+            return Milter.TEMPFAIL
+
+	mime = '''This is an OpenPGP/MIME encrypted message (RFC 4880 and 3156)
+--%s
+Content-Type: application/pgp-encrypted
+Content-Description: PGP/MIME version identification
+
+Version: 1
+
+--%s
+Content-Type: application/octet-stream; name="encrypted.asc"
+Content-Description: OpenPGP encrypted message
+Content-Disposition: inline; filename="encrypted.asc"
+
+%s
+--%s--''' % (outerboundary, outerboundary, mime_enc_msg.data, outerboundary)
 
         # Replace original email with our encrypted version
-        self.replacebody(enc_msg.data)
+        self.replacebody(mime)
 
         return Milter.ACCEPT
 
