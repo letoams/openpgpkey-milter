@@ -169,6 +169,25 @@ class myMilter(Milter.Base):
         # msg is an email.message.Message
         # http://docs.python.org/release/2.7.6/library/email.message.html
 
+        # Protect against super-encryption
+        if '-----BEGIN PGP MESSAGE-----' in msg.get_payload(decode=True):
+            # already encrypted, let it go as is
+            syslog('Message already encrypted with PGP - letting it go unmodified')
+            return Milter.CONTINUE
+
+        # Protect against super-encryption
+        if "Content-Type" in msg:
+            if "pkcs7-mime" in msg["Content-Type"] and \
+                "enveloped-data" in msg["Content-Type"]:
+                syslog('Message already encrypted with S/MIME - letting it go unmodified')
+                return Milter.CONTINUE
+
+            if "application/octet-stream" in msg["Content-Type"] and \
+                ".p7m" in msg["Content-Type"] or \
+                "application/x-pkcs7-mime" in msg["Content-Type"] or \
+                "application/pkcs7-mime" in msg["Content-Type"]:
+                syslog('Message already encrypted with S/MIME - letting it go unmodified')
+                return Milter.CONTINUE
 
         # ### TODO ADD SUPPORT FOR MIME / ATTACHMENTS ####
         if msg.is_multipart():
@@ -233,11 +252,6 @@ class myMilter(Milter.Base):
         #if recipient == "plaintext@nohats.ca" or ikey['keyid'] == "1111111111111111":
         #   syslog("Skipping encryption");
         #   return Milter.CONTINUE
-
-        if '-----BEGIN PGP MESSAGE-----' in msg.get_payload(decode=True):
-            # already encrypted, let it go as is
-            syslog('Message already encrypted - letting it go unmodified')
-            return Milter.CONTINUE
 
         outerboundary = ''.join(random.SystemRandom().choice(string.ascii_letters + string.digits) for _ in range(32))
         innerboundary = ''.join(random.SystemRandom().choice(string.ascii_letters + string.digits) for _ in range(32))
