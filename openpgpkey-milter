@@ -176,8 +176,13 @@ class myMilter(Milter.Base):
             syslog('No recipients')
             return Milter.CONTINUE
 
+        # ### TODO ADD SUPPORT FOR MIME / ATTACHMENTS ####
+        if msg.is_multipart():
+            syslog('Multipart message type passed unmodified')
+            return Milter.CONTINUE
+
         # Protect against super-encryption
-        if '-----BEGIN PGP MESSAGE-----' in self.msg_body:
+        if '-----BEGIN PGP MESSAGE-----' in msg.get_payload(decode=True):
             # already encrypted, let it go as is
             syslog('Message already encrypted with PGP - letting it go unmodified')
             return Milter.CONTINUE
@@ -195,11 +200,6 @@ class myMilter(Milter.Base):
                 "application/pkcs7-mime" in msg["Content-Type"]:
                 syslog('Message already encrypted with S/MIME - letting it go unmodified')
                 return Milter.CONTINUE
-
-        # ### TODO ADD SUPPORT FOR MIME / ATTACHMENTS ####
-        if msg.is_multipart():
-            syslog('Multipart message type passed unmodified')
-            return Milter.CONTINUE
 
         gpgdir = '%s/%s' % (spool_dir, self.id)
         if os.path.isdir(gpgdir):
