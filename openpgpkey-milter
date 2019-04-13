@@ -165,24 +165,22 @@ class myMilter(Milter.Base):
 
     def eom(self):
         self.fp.seek(0)
-        subject = 'none'
+        msg_body = ''.join(self.msg_body)
 
         self.addheader('X-OPENPGPKEY', 'Message passed unmodified' , 1)
         msg = email.message_from_file(self.fp)
         # msg is an email.message.Message
         # http://docs.python.org/release/2.7.6/library/email.message.html
 
-        if self.R == []:
+        self.fp.close()
+        del self.fp
+
+        if not len(self.R) > 0:
             syslog('No recipients')
             return Milter.CONTINUE
 
-        # ### TODO ADD SUPPORT FOR MIME / ATTACHMENTS ####
-        if msg.is_multipart():
-            syslog('Multipart message type passed unmodified')
-            return Milter.CONTINUE
-
         # Protect against super-encryption
-        if '-----BEGIN PGP MESSAGE-----' in msg.get_payload(decode=True):
+        if '-----BEGIN PGP MESSAGE-----' in msg_body or not msg.is_multipart() and '-----BEGIN PGP MESSAGE-----' in msg.get_payload(decode=True):
             # already encrypted, let it go as is
             syslog('Message already encrypted with PGP - letting it go unmodified')
             return Milter.CONTINUE
@@ -283,7 +281,7 @@ Subject: %s
 
 %s
 
---%s--''' % (innerboundary, msg.get('subject'), innerboundary, mime_header, self.msg_body[0], innerboundary)
+--%s--''' % (innerboundary, msg.get('subject'), innerboundary, mime_header, msg_body, innerboundary)
 
 
         gpg = gnupg.GPG(gnupghome=gpgdir)
