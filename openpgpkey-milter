@@ -218,8 +218,8 @@ class myMilter(Milter.Base):
                 syslog("unbound openpgpkey lookup for '%s' returned non-zero status, deferring" % recipient)
                 return Milter.TEMPFAIL
             if result.rcode_str == 'serv fail':
-                syslog("unbound openpgpkey lookup for '%s' returned SERVFAIL, deferring" % recipient)
-                return Milter.TEMPFAIL
+                syslog("unbound openpgpkey lookup for '%s' returned SERVFAIL - letting go plaintext" % recipient)
+                return Milter.CONTINUE
             if result.bogus:
                 syslog("unbound openpgpkey lookup for '%s' returned with INVALID DNSSEC data, deferring" % recipient)
                 return Milter.TEMPFAIL
