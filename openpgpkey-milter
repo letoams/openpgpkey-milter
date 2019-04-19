@@ -30,8 +30,10 @@ import shutil
 import argparse
 import random
 import string
+from hashlib import sha1
 from hashlib import sha256
 from email.utils import parseaddr
+import requests
 
 from socket import AF_INET6
 from Milter.utils import parse_addr
@@ -78,8 +80,67 @@ spool_dir = '/var/spool/openpgpkey-milter'
 import gnupg
 
 def sha256trunc(data):
-        """Compute SHA2-256 hash truncated to 28 octets."""
-        return sha256(data).hexdigest()[:56]
+    """Compute SHA2-256 hash truncated to 28 octets."""
+    return sha256(data).hexdigest()[:56]
+
+# Taken from https://hg.intevation.de/gnupg/wkd-tools/file/tip/generate-openpgpkey-hu
+def zb32_encode(data):
+    """Return data in zbase 32 encoding.
+
+    Data must be convertible to a bytearray.
+
+    Implementation is derived from GnuPG's common/zb32.c
+    as published in gnupg-2.1.15.
+    """
+    zb32asc = "ybndrfg8ejkmcpqxot1uwisza345h769"
+
+    data = bytearray(data)
+    databits = len(data) * 8
+    datalen = (databits + 7) / 8
+
+    output = ""
+
+    while datalen >= 5:
+        output += zb32asc[((data[0]      ) >> 3)                  ]
+        output += zb32asc[((data[0] &   7) << 2) | (data[1] >> 6) ]
+        output += zb32asc[((data[1] &  63) >> 1)                  ]
+        output += zb32asc[((data[1] &   1) << 4) | (data[2] >> 4) ]
+        output += zb32asc[((data[2] &  15) << 1) | (data[3] >> 7) ]
+        output += zb32asc[((data[3] & 127) >> 2)                  ]
+        output += zb32asc[((data[3] &   3) << 3) | (data[4] >> 5) ]
+        output += zb32asc[((data[4] &  31)     )                  ]
+        data = data[5:]
+        datalen -= 5
+
+    if datalen == 4:
+        output += zb32asc[((data[0]      ) >> 3)                  ]
+        output += zb32asc[((data[0] &   7) << 2) | (data[1] >> 6) ]
+        output += zb32asc[((data[1] &  63) >> 1)                  ]
+        output += zb32asc[((data[1] &   1) << 4) | (data[2] >> 4) ]
+        output += zb32asc[((data[2] &  15) << 1) | (data[3] >> 7) ]
+        output += zb32asc[((data[3] & 127) >> 2)                  ]
+        output += zb32asc[((data[3] &   3) << 3)                  ]
+    elif datalen == 3:
+        output += zb32asc[((data[0]      ) >> 3)                  ]
+        output += zb32asc[((data[0] &   7) << 2) | (data[1] >> 6) ]
+        output += zb32asc[((data[1] &  63) >> 1)                  ]
+        output += zb32asc[((data[1] &   1) << 4) | (data[2] >> 4) ]
+        output += zb32asc[((data[2] &  15) << 1)                  ]
+    elif datalen == 2:
+        output += zb32asc[((data[0]      ) >> 3)                  ]
+        output += zb32asc[((data[0] &   7) << 2) | (data[1] >> 6) ]
+        output += zb32asc[((data[1] &  63) >> 1)                  ]
+        output += zb32asc[((data[1] &   1) << 4)                  ]
+    elif datalen == 1:
+        output += zb32asc[((data[0]      ) >> 3)                  ]
+        output += zb32asc[((data[0] &   7) << 2)                  ]
+
+    # Need to strip some bytes if not a multiple of 40.
+    output = output[:(databits + 5 - 1) / 5]
+    return output
+
+def zb32sha1(data):
+    return zb32_encode(sha1(data).digest())
 
 class myMilter(Milter.Base):
 
@@ -210,37 +271,67 @@ class myMilter(Milter.Base):
             (username, domainname) = recipient.split('@')
             # lowercase for sanity - not currently part of specification
             rfcname = sha256trunc(username.lower())
+            wkdname = zb32sha1(username.lower())
+            wkd_key = None
+
+            # try fetching key from WKD
+            try:
+                advanced_query = "https://openpgpkey.%s/.well-known/openpgpkey/%s/hu/%s" % (domainname.lower(), domainname.lower(), wkdname)
+                wkd_request = requests.get(advanced_query, allow_redirects=False, params={"l": username}, timeout=2)
+                if wkd_request.status_code == 200:
+                    wkd_key = wkd_request.content
+            except:
+                pass
+            if wkd_key is None:
+                try:
+                    direct_query = "https://%s/.well-known/openpgpkey/hu/%s" % (domainname.lower(), wkdname)
+                    wkd_request = requests.get(direct_query, allow_redirects=False, params={"l": username}, timeout=2)
+                    if wkd_request.status_code == 200:
+                        wkd_key = wkd_request.content
+                except:
+                    pass
+
             qname = '%s._openpgpkey.%s' % (rfcname, domainname)
             (status, result) = ctx.resolve(qname, OPENPGPKEY,
                     unbound.RR_CLASS_IN)
-            if status != 0:
+            if wkd_key is None and status != 0:
                 # can this ever happen?
                 syslog("unbound openpgpkey lookup for '%s' returned non-zero status, deferring" % recipient)
                 return Milter.TEMPFAIL
-            if result.rcode_str == 'serv fail':
+            if wkd_key is None and result.rcode_str == 'serv fail':
                 syslog("unbound openpgpkey lookup for '%s' returned SERVFAIL - letting go plaintext" % recipient)
                 return Milter.CONTINUE
-            if result.bogus:
+            if wkd_key is None and result.bogus:
                 syslog("unbound openpgpkey lookup for '%s' returned with INVALID DNSSEC data, deferring" % recipient)
                 return Milter.TEMPFAIL
-            if not result.secure:
+            if wkd_key is None and not result.secure:
                 syslog("unbound openpgpkey lookup for '%s' ignored as the domain is not signed with DNSSEC - letting go plaintext" % recipient)
                 return Milter.CONTINUE
-            if not result.havedata:
+            if wkd_key is None and not result.havedata:
                 syslog("unbound openpgpkey lookup for '%s' succeeded but no OpenPGP key publishd - letting go plaintext" % recipient)
                 return Milter.CONTINUE
 
             # Finally, we have a key!
-            for openpgpkey in result.data.raw:
-                # TODO: check failure to import
-                import_result = gpg.import_keys(openpgpkey)
+            import_count = 0
+            if result.havedata:
+                for openpgpkey in result.data.raw:
+                    import_result = gpg.import_keys(openpgpkey)
+                    import_count += import_result.count
+
+            if not wkd_key is None:
+                import_result = gpg.import_keys(wkd_key)
+                import_count += import_result.count
+
+            if import_count < 1:
+                syslog("no keys could be imported for '%s' - letting go plaintext" % recipient)
+                return Milter.CONTINUE
 
         # if we get here, all recipients had an valid openpgpkey record so we can encrypt the message
         # collect fingerprints needed to target message encryption
         fingerprints = []
         imported_keys = gpg.list_keys()
         for ikey in imported_keys:
-            syslog('Received DNSSEC secured OPENPGPKEY for %s: Key-ID:%s Fingerprint:%s'
+            syslog('Received OPENPGPKEY for %s: Key-ID:%s Fingerprint:%s'
                     % (recipient, ikey['keyid'], ikey['fingerprint']))
             fingerprints.append(ikey['fingerprint'])
         fpliststr = ','.join(fingerprints)
