@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
 # Copyright 2013-2014 Paul Wouters <paul@cypherpunks.ca>
@@ -21,7 +21,10 @@ VERSION = '0.5'
 OPENPGPKEY = 61
 
 import Milter
-import StringIO
+try:
+    from io import  StringIO
+except:
+    from StringIO import StringIO
 import time
 import email
 import sys
@@ -41,7 +44,7 @@ if True:
     from multiprocessing import Process as Thread, Queue
 else:
     from threading import Thread
-    from Queue import Queue
+    from queue import Queue
 
 logq = Queue(maxsize=4)
 
@@ -136,7 +139,8 @@ def zb32_encode(data):
         output += zb32asc[((data[0] &   7) << 2)                  ]
 
     # Need to strip some bytes if not a multiple of 40.
-    output = output[:(databits + 5 - 1) / 5]
+    output_offset = int((databits + 5 - 1) / 5)
+    output = output[:output_offset]
     return output
 
 def zb32sha1(data):
@@ -173,18 +177,9 @@ class myMilter(Milter.Base):
         syslog('connect from %s at %s' % (IPname, hostaddr))
         return Milter.CONTINUE
 
-  # #  def hello(self,hostname):
-
     def hello(self, heloname):
-
-    # (self, 'example.com')
-
         self.H = heloname
-        # syslog("HELO %s" % heloname)
-
         return Milter.CONTINUE
-
-  # #  def envfrom(self,f,*str):
 
     def envfrom(self, mailfrom, *str):
         self.F = mailfrom
@@ -192,14 +187,11 @@ class myMilter(Milter.Base):
         self.msg_body = []
         self.fromparms = Milter.dictfromlist(str)  # ESMTP parms
         self.user = self.getsymval('{auth_authen}')  # authenticated user
-        # syslog("mail from:", mailfrom, *str)
 
-        self.fp = StringIO.StringIO()
+        self.fp = StringIO()
         self.canon_from = '@'.join(parse_addr(mailfrom))
-        self.fp.write('From %s %s\n' % (self.canon_from, time.ctime()))
+        self.fp.write(u'From %s %s\n' % (self.canon_from, time.ctime()))
         return Milter.CONTINUE
-
-  # #  def envrcpt(self, to, *str):
 
     @Milter.noreply
     def envrcpt(self, to, *str):
@@ -210,18 +202,18 @@ class myMilter(Milter.Base):
 
     @Milter.noreply
     def header(self, name, hval):
-        self.fp.write('%s: %s\n' % (name, hval))  # add header to buffer
+        self.fp.write(u'%s: %s\n' % (name, hval))  # add header to buffer
         return Milter.CONTINUE
 
     @Milter.noreply
     def eoh(self):
-        self.fp.write('\n')  # terminate headers
+        self.fp.write(u'\n')  # terminate headers
         return Milter.CONTINUE
 
     @Milter.noreply
     def body(self, chunk):
-        self.fp.write(chunk)
-        self.msg_body.append(chunk)
+        self.fp.write(chunk.decode('utf-8'))
+        self.msg_body.append(chunk.decode('utf-8'))
         return Milter.CONTINUE
 
     def eom(self):
@@ -241,7 +233,7 @@ class myMilter(Milter.Base):
             return Milter.CONTINUE
 
         # Protect against super-encryption
-        if '-----BEGIN PGP MESSAGE-----' in msg_body or not msg.is_multipart() and '-----BEGIN PGP MESSAGE-----' in msg.get_payload(decode=True):
+        if '-----BEGIN PGP MESSAGE-----' in msg_body:
             # already encrypted, let it go as is
             syslog('Message already encrypted with PGP - letting it go unmodified')
             return Milter.CONTINUE
@@ -270,8 +262,8 @@ class myMilter(Milter.Base):
         for recipient in self.R:
             (username, domainname) = recipient.split('@')
             # lowercase for sanity - not currently part of specification
-            rfcname = sha256trunc(username.lower())
-            wkdname = zb32sha1(username.lower())
+            rfcname = sha256trunc(username.lower().encode('utf-8'))
+            wkdname = zb32sha1(username.lower().encode('utf-8'))
             wkd_key = None
 
             # try fetching key from WKD
@@ -345,23 +337,16 @@ class myMilter(Milter.Base):
         innerboundary = ''.join(random.SystemRandom().choice(string.ascii_letters + string.digits) for _ in range(32))
 
         mime_header = '';
-        if msg.has_key('Content-Type'):
+        if 'Content-Type' in msg:
             mime_header += 'Content-Type: %s' % msg.get('Content-Type')
         else:
             mime_header += 'Content-Type: text/plain'
 
         # MIME headers from https://www.iana.org/assignments/message-headers/message-headers.xhtml
-        for header in ['Base', 'Content-Alternative', 'Content-Base', 'Content-Description', 'Content-Disposition', 'Content-Duration', 'Content-features', 'Content-ID', 'Content-Language', 'Content-Location', 'Content-MD5', 'Content-Transfer-Encoding', 'Content-Translation-Type', 'MIME-Version']:
-            if msg.has_key(header):
+        mime_message_headers = ['Base', 'Content-Alternative', 'Content-Base', 'Content-Description', 'Content-Disposition', 'Content-Duration', 'Content-features', 'Content-ID', 'Content-Language', 'Content-Location', 'Content-MD5', 'Content-Transfer-Encoding', 'Content-Translation-Type', 'MIME-Version']
+        for header in mime_message_headers:
+            if header in msg:
                 mime_header += '\r\n%s: %s' % (header, msg.get(header))
-                self.chgheader(header, 1, None)
-
-        self.chgheader('User-Agent', 1, 'dkim-openpgpkey')
-        self.chgheader('Subject', 1, '[openpgpkey-milter encrypted message]')
-        self.chgheader('X-OPENPGPKEY', 1, 'Encrypted to key(s): %s ' % fpliststr)
-        self.chgheader('Content-Transfer-Encoding', 1, '8bit')
-        self.chgheader('MIME-Version', 1, '1.0')
-        self.chgheader('Content-Type', 1, 'multipart/encrypted;\r\n protocol="application/pgp-encrypted"; boundary="%s"' % outerboundary)
 
         mime_msgstr = '''Content-Type: multipart/mixed; boundary="%s";
  protected-headers="v1"
@@ -375,16 +360,13 @@ Subject: %s
 --%s--''' % (innerboundary, msg.get('subject'), innerboundary, mime_header, msg_body, innerboundary)
 
 
-        gpg = gnupg.GPG(gnupghome=gpgdir)
-        gpg.decode_errors="ignore"
         syslog('Will encrypt message to fingerprints:%s' % fpliststr)
         mime_enc_msg = gpg.encrypt(mime_msgstr, fingerprints, always_trust=True)
-        if mime_enc_msg.data == '':
-            # gpg binary and pythong wrapper is bad at giving us an error message
-            syslog('Encryption to %s failed - failing message for retry later' % fpliststr)
-            return Milter.TEMPFAIL
+        if not mime_enc_msg.ok:
+            syslog("Encryption to %s failed with status '%s' - letting go plaintext" % (fpliststr, mime_enc_msg.status))
+            return Milter.CONTINUE
 
-	mime = '''This is an OpenPGP/MIME encrypted message (RFC 4880 and 3156)
+        mime = '''This is an OpenPGP/MIME encrypted message (RFC 4880 and 3156)
 --%s
 Content-Type: application/pgp-encrypted
 Content-Description: PGP/MIME version identification
@@ -397,10 +379,20 @@ Content-Description: OpenPGP encrypted message
 Content-Disposition: inline; filename="encrypted.asc"
 
 %s
---%s--''' % (outerboundary, outerboundary, mime_enc_msg.data, outerboundary)
+--%s--''' % (outerboundary, outerboundary, str(mime_enc_msg), outerboundary)
 
         # Replace original email with our encrypted version
+        for header in mime_message_headers:
+            if header in msg:
+                self.chgheader(header, 1, None)
         self.replacebody(mime)
+        self.chgheader('User-Agent', 1, 'dkim-openpgpkey')
+        self.chgheader('Subject', 1, '[openpgpkey-milter encrypted message]')
+        self.chgheader('X-OPENPGPKEY', 1, 'Encrypted to key(s): %s ' % fpliststr)
+        self.chgheader('Content-Transfer-Encoding', 1, '8bit')
+        self.chgheader('MIME-Version', 1, '1.0')
+        self.chgheader('Content-Type', 1, 'multipart/encrypted;\r\n protocol="application/pgp-encrypted"; boundary="%s"' % outerboundary)
+
 
         return Milter.ACCEPT
 
@@ -456,8 +448,8 @@ def main():
                         help='show version and exit')
     args = parser.parse_args()
     if args.version:
-        print 'openpgpkey-milter version %s by Paul Wouters <paul@cypherpunks.ca>' % VERSION
-        print '     options: --rrtype %s --spool %s  --port %s  --timeout %s --pid <pidfile>' % (args.rrtype, args.spool, args.port, args.timeout)
+        print('openpgpkey-milter version %s by Paul Wouters <paul@cypherpunks.ca>' % VERSION)
+        print('     options: --rrtype %s --spool %s  --port %s  --timeout %s --pid <pidfile>' % (args.rrtype, args.spool, args.port, args.timeout))
         sys.exit()
 
     if args.anchor:
