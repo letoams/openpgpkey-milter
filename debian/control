@@ -10,7 +10,8 @@ Homepage: ftp://ftp.nohats.ca/openpgpkey-milter/
 
 Package: openpgpkey-milter
 Architecture: all
-Depends: ${misc:Depends}, mail-transport-agent, python-unbound, python-gnupg, python-milter, python-requests
+Depends: ${misc:Depends}, mail-transport-agent, python3-unbound, python3-gnupg,
+ python3-milter, python3-requests
 Description: OPENPGPKEY basd automatic encryption of emails using the milter API
  The openpgpkey-milter package provides a milter plugin for sendmail or postfix
  that will automatically encrypt plaintext emails if the target recipient is
