@@ -210,10 +210,14 @@ class myMilter(Milter.Base):
         self.fp.write(u'\n')  # terminate headers
         return Milter.CONTINUE
 
-    @Milter.noreply
+#    @Milter.noreply
     def body(self, chunk):
-        self.fp.write(chunk.decode('utf-8'))
-        self.msg_body.append(chunk.decode('utf-8'))
+        #TODO: properly handle binary data
+        try:
+            self.fp.write(chunk.decode('utf-8'))
+            self.msg_body.append(chunk.decode('utf-8'))
+        except:
+            return Milter.ACCEPT
         return Milter.CONTINUE
 
     def eom(self):
