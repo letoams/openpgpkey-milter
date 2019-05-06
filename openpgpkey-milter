@@ -264,7 +264,11 @@ class myMilter(Milter.Base):
         gpg = gnupg.GPG(gnupghome=gpgdir)
         gpg.decode_errors="ignore"
         for recipient in self.R:
-            (username, domainname) = recipient.split('@')
+            try:
+                (username, domainname) = recipient.split('@')
+            except: # null mailer <> or bad address
+                syslog("Skipping recipient address <%s>" % recipient)
+                return Milter.CONTINUE
             # lowercase for sanity - not currently part of specification
             rfcname = sha256trunc(username.lower().encode('utf-8'))
             wkdname = zb32sha1(username.lower().encode('utf-8'))
