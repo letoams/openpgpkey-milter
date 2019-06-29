@@ -214,8 +214,8 @@ class myMilter(Milter.Base):
     def body(self, chunk):
         #TODO: properly handle binary data
         try:
-            self.fp.write(chunk.decode('utf-8'))
-            self.msg_body.append(chunk.decode('utf-8'))
+            self.fp.write(chunk.decode('utf-8', 'strict'))
+            self.msg_body.append(chunk.decode('utf-8', 'strict'))
         except:
             return Milter.ACCEPT
         return Milter.CONTINUE
@@ -367,9 +367,8 @@ Subject: %s
 
 --%s--''' % (innerboundary, msg.get('subject'), innerboundary, mime_header, msg_body, innerboundary)
 
-
         syslog('Will encrypt message to fingerprints:%s' % fpliststr)
-        mime_enc_msg = gpg.encrypt(mime_msgstr, fingerprints, always_trust=True)
+        mime_enc_msg = gpg.encrypt(mime_msgstr.encode('utf-8'), fingerprints, always_trust=True)
         if not mime_enc_msg.ok:
             syslog("Encryption to %s failed with status '%s' - letting go plaintext" % (fpliststr, mime_enc_msg.status))
             return Milter.CONTINUE
