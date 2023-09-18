@@ -17,7 +17,7 @@
 # or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
 # for more details.
 
-VERSION = '0.5'
+VERSION = '0.6'
 OPENPGPKEY = 61
 
 import Milter
@@ -37,6 +37,8 @@ from hashlib import sha1
 from hashlib import sha256
 from email.utils import parseaddr
 import requests
+import re
+import configparser
 
 from socket import AF_INET6
 from Milter.utils import parse_addr
@@ -79,6 +81,21 @@ except:
     pass
 
 spool_dir = '/var/spool/openpgpkey-milter'
+
+class Config(object):
+    pass
+
+def read_config(list):
+    conf = Config()
+    conf.skip_domains = []
+
+    cp = configparser.ConfigParser(allow_no_value=True)
+    config_files = cp.read(list)
+    if len(config_files) > 0:
+        syslog('config: %s' % config_files)
+        conf.skip_domains = re.split(r'[,\s]+', cp['milter']['skip_domains'])
+        syslog('skip processing for domains: %s' % conf.skip_domains)
+    return conf
 
 import gnupg
 
@@ -200,6 +217,20 @@ class myMilter(Milter.Base):
         self.R.append(parseaddr(rcpto)[1])
         return Milter.CONTINUE
 
+    def data(self):
+        # check for domains to skip
+        for recipient in self.R:
+            try:
+                (username, domainname) = recipient.split('@')
+                if not domainname.lower() in (item.lower() for item in self.conf.skip_domains):
+                    return Milter.CONTINUE
+            except:
+                syslog("Skipping recipient address <%s>" % recipient)
+                return Milter.TEMPFAIL
+
+        syslog('No recipients for processing')
+        return Milter.ACCEPT
+
     @Milter.noreply
     def header(self, name, hval):
         self.fp.write(u'%s: %s\n' % (name, hval))  # add header to buffer
@@ -231,10 +262,6 @@ class myMilter(Milter.Base):
 
         self.fp.close()
         del self.fp
-
-        if not len(self.R) > 0:
-            syslog('No recipients')
-            return Milter.CONTINUE
 
         # Protect against super-encryption
         if '-----BEGIN PGP MESSAGE-----' in msg_body:
@@ -463,6 +490,9 @@ def main():
         if not os.path.isfile(args.anchor):
            sys.exit("anchor file '%s' does not exist"%args.anchor)
         ctx.add_ta_file(args.anchor)
+
+    global config
+    config = read_config(['openpgpkey-milter.conf','/etc/openpgpkey-milter.conf'])
 
     socketname = 'inet:%s@127.0.0.1' % args.port
     spool_dir = args.spool
