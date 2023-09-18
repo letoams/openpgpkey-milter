@@ -167,6 +167,8 @@ class myMilter(Milter.Base):
 
     def __init__(self):  # A new instance with each new connection.
         self.id = Milter.uniqueID()  # Integer incremented with each call.
+        # we don't want config used to change during a connection
+        self.conf = config
 
   # each connection runs in its own thread and has its own myMilter
   # instance.  Python code must be thread safe.  This is trivial if only stuff
