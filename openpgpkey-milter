@@ -88,6 +88,7 @@ class Config(object):
 def read_config(list):
     conf = Config()
     conf.skip_domains = []
+    conf.skip_recipients = []
 
     cp = configparser.ConfigParser(allow_no_value=True)
     config_files = cp.read(list)
@@ -95,6 +96,8 @@ def read_config(list):
         syslog('config: %s' % config_files)
         conf.skip_domains = re.split(r'[,\s]+', cp['milter']['skip_domains'])
         syslog('skip processing for domains: %s' % conf.skip_domains)
+        conf.skip_recipients = re.split(r'[,\s]+', cp['milter']['skip_recipients'])
+        syslog('skip processing for recipients: %s' % conf.skip_recipients)
     return conf
 
 import gnupg
@@ -167,6 +170,8 @@ class myMilter(Milter.Base):
 
     def __init__(self):  # A new instance with each new connection.
         self.id = Milter.uniqueID()  # Integer incremented with each call.
+        # we don't want config used to change during a connection
+        self.conf = config
 
   # each connection runs in its own thread and has its own myMilter
   # instance.  Python code must be thread safe.  This is trivial if only stuff
@@ -222,7 +227,7 @@ class myMilter(Milter.Base):
         for recipient in self.R:
             try:
                 (username, domainname) = recipient.split('@')
-                if not domainname.lower() in (item.lower() for item in self.conf.skip_domains):
+                if not recipient.lower() in (item.lower() for item in self.conf.skip_recipients) and not domainname.lower() in (item.lower() for item in self.conf.skip_domains):
                     return Milter.CONTINUE
             except:
                 syslog("Skipping recipient address <%s>" % recipient)
